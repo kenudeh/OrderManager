@@ -5,7 +5,7 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
-from .permissions import IsManagerOrReadOnly
+from .permissions import IsManagerOrReadOnly, IsManagerOrReadOnlySingleView
 import logging
 
 
@@ -77,3 +77,14 @@ class MenuItemView(APIView):
         return Response({"detail": "Method Not Allowed"}, status=status.HTTP_403_FORBIDDEN)
     
     
+    
+    
+class SingleMenuItem(APIView):
+    permission_classes = [IsManagerOrReadOnlySingleView]
+    throttle_classes = [AnonRateThrottle]
+    
+    
+    def get(self, request, pk):
+        menu_items = MenuItem.objects.all()
+        serializer = MenuItemSerializer(menu_items, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

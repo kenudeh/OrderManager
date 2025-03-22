@@ -3,7 +3,7 @@ from .models import *
 
 # Register your models here.
 class CategoryAdmin(admin.ModelAdmin):
-    pass
+    list_display = ('title', 'slug')
 admin.site.register(Category, CategoryAdmin)
 
 

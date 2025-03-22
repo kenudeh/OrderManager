@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('menu-item', views.MenuItemView.as_view()),
+    path('menu-item/<int:pk>', views.SingleMenuItem.as_view()),
     
     # Djoser urls
     path("", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
