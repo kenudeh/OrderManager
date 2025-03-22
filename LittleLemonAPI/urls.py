@@ -3,16 +3,15 @@ from . import views
 
 
 urlpatterns = [
-    
+    path('menu-item', views.MenuItemView.as_view()),
     
     # Djoser urls
-    path("auth/", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
-    path("auth/", include("djoser.urls.authtoken")),  # Includes JWT token endpoints
+    path("", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
+    path("", include("djoser.urls.authtoken")),  # Includes  token endpoints
 ]
 
 
-# # /auth/users/ (user registration)
-
-# /auth/token/login/ (login to obtain a token)
-
-# /auth/token/logout/
+# api/users/ (user registration)
+# api/users/me (display currently authenticated user)
+# api/token/login (Generates access token. Username and password must be included in the request)
+# /token/logout/
