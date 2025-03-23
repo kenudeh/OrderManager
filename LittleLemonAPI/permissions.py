@@ -21,11 +21,25 @@ class IsManagerOrReadOnly(BasePermission):
     
     
 class IsManagerOrReadOnlySingleView(BasePermission):
-        
+    
     def has_permission(self, request, view):
+        # Leave GET open for all 
         if request.method in SAFE_METHODS:
             return True
         
+        # Only authenticated managers can access PUT, PATCH, and DELETE
         if request.method in ["PUT", "PATCH", "DELETE"] :
-            return request.user.is_authenticated and request.user.groups.filter(name="manager").exists()
-        return False # Deny all other HTTP method (PUT, PATCH, DELETE)
+            return request.user.is_authenticated and "Manager" in request.user.groups.values_list("name", flat=True)
+        
+        if request.method == "POST":
+            return True
+        
+        return False # Deny all other HTTP methods (POST in this case)
+
+
+
+class IsUserManager(BasePermission):
+    
+    def has_permission(self, request, view):
+        if request.method in ["POST", "GET"]:
+            return request.user.is_authenticated and request.user.groups.filter(name="Manager").exists()

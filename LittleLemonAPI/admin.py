@@ -8,7 +8,7 @@ admin.site.register(Category, CategoryAdmin)
 
 
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ('title', 'category')
+    list_display = ('title', 'price', 'category')
 admin.site.register(MenuItem, MenuItemAdmin)
 
 
