@@ -1,4 +1,6 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
+from django.db.models import Q  # For OR comparison
+
 
 
 class IsManagerOrReadOnly(BasePermission):
@@ -39,7 +41,23 @@ class IsManagerOrReadOnlySingleView(BasePermission):
 
 
 class IsUserManager(BasePermission):
-    
     def has_permission(self, request, view):
-        if request.method in ["POST", "GET"]:
+        if request.method in ["POST", "GET", "DELETE"]:
             return request.user.is_authenticated and request.user.groups.filter(name="Manager").exists()
+        
+
+class IsUserCustomer(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in ["POST", "GET", "DELETE"]:
+            return request.user.is_authenticated and not request.user.groups.filter(Q(name="Manager") | Q(name="Delivery crew")).exists()
+        
+        
+
+class OrderPermissions(BasePermission):
+    def has_permission(self, request, view):
+        
+        if request.method in SAFE_METHODS:
+            return request.user.is_authenticated
+        
+        if request.method == "POST":
+            return request.user.is_authenticated and not request.user.groups.filter(Q(name="Manager") | Q(name="Delivery crew")).exists()
