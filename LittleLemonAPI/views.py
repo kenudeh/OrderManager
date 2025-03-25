@@ -12,7 +12,9 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q  # For OR comparison
 
 from django.contrib.auth.models import User, Group
-from datetime import timezone
+from django.utils import timezone
+from django.db.models import Prefetch
+
 
 
 
@@ -376,14 +378,35 @@ class OrdersView(APIView):
     permission_classes = [OrderPermissions]
     throttle_classes = [AnonRateThrottle]
     
+    # Return orders based on the user role
     def get(self, request):
-        return Response({"detail": "Request going through"})
+        user = request.user
+        
+        # Prefetching related order items for performance
+        order_items_prefetch = Prefetch('orderitem_set', queryset=OrderItem.objects.select_related('menuitem'))
+        
+        # Case 1: Mangers can view all items
+        if user.groups.filter(name='Manager').exists():
+            orders = Order.objects.all().prefetch_related(order_items_prefetch)
+        # Case 2: Delivery crew can only see orders assigned to them
+        elif user.groups.filter(name='Delivery crew').exists():
+            orders = Order.objects.filter(
+                delivery_crew=user
+            ).prefetch_related(order_items_prefetch)
+        # Case 3: Customers can only view their own orders
+        else:
+            orders = Order.objects.filter(user = user).prefetch_related(order_items_prefetch)
+      
+        # Passing the context to the serializer for role checking 
+        serializer = OrderSerializer(orders, many=True, context={'request': request})
+        return Response(serializer.data)
     
     
+    # Order handling method. Converts cart items to an order and clears the cart
     def post(self,request):
         user = request.user
         
-        # Get cart items directly from the CartView view
+        # Getting cart items directly from the Cart model
         cart_items = Cart.objects.filter(user=request.user).values(
             'menuitem_id',  
             'quantity',
@@ -399,11 +422,10 @@ class OrdersView(APIView):
 
         
         # Create the order 
-        order_total = sum(item['price'] for item in cart_items)
         order = Order.objects.create(
-            user=user,
+            user=request.user,
             status=False,
-            total=order_total,
+            total=sum(item['price'] for item in cart_items),
             date=timezone.now()
         )
         
@@ -412,11 +434,12 @@ class OrdersView(APIView):
         for item in cart_items:
             OrderItem.objects.create(
                 order=order,
-                menuitem_id=item['menuitem_id'],  # Matches your FK name
+                menuitem_id=item['menuitem_id'],  
                 quantity=item['quantity'],
                 unit_price=item['unit_price'],
                 price=item['price']
             )
+            
             
         # Clear the cart
         Cart.objects.filter(user=user).delete()
@@ -425,3 +448,57 @@ class OrdersView(APIView):
             {"detail": "Order created successfully", "order_id": order.id},
             status=status.HTTP_201_CREATED
         )
+        
+        
+
+class OrderDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle]
+    
+    # Helper method to get order or return 404
+    def retrieve_order(self, pk):
+        return get_object_or_404(Order, id=pk)
+    
+    # Helper method for permission checks
+    def validate_order_access(self, order, user):
+        # Case 1: Managers can access any order
+        if user.groups.filter(name='Manager').exists():
+            return True
+        
+        # Case 2: Delivery crew can access asigned orders
+        if user.groups.filter(name='Delivery crew').exists():
+            return order.delivery_crew == user
+        
+        # Case 3: Customers can only access their own orders
+        return order.user == user
+    
+    
+    
+    # GET method (Customers can view their own orders | Managers can view all orders | Delivery Crew can view assigned orders)
+    def get(self, request, pk):
+        order = self.retrieve_order(pk)
+        
+        # Checking for access right
+        if not self.validate_order_access(order, request.user):
+            return Response(
+                {"detail": "You do not have permission to view this order."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # If user has access right, 
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        
+    
+    
+    def put(self, request, pk):
+        return Response({"message": "going through"})
+    
+    
+    def patch(self, request, pk):
+        return Response({"message": "going through"})
+    
+    
+    def delete(self, request, pk):
+        return Response({"message": "going through"})

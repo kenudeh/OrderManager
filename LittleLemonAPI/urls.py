@@ -11,6 +11,7 @@ urlpatterns = [
     path('groups/delivery-crew/users/<int:pk>', views.RemoveFromDeliveryCrew.as_view()),
     path('cart/menu-items', views.CartView.as_view()),
     path('orders', views.OrdersView.as_view()),
+    path('orders/<int:pk>', views.OrderDetailView.as_view()),
     # Djoser urls
     path("", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
     path("", include("djoser.urls.authtoken")),  # Includes  token endpoints
