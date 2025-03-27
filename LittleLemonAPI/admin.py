@@ -18,7 +18,17 @@ admin.site.register(Cart, CartAdmin)
 
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('user', 'delivery_crew', 'status', 'total')
+    def get_fields(self, request, obj=None):
+        # Delivery crew sees ONLY these fields (simpler UI)
+        if request.user.groups.filter(name='Delivery crew').exists():
+            return ['status']  # Whitelist
+        
+        if request.user.groups.filter(name='Manager').exists():
+            return ['delivery_crew']
+        
+        # Superusers/other groups see all fields
+        return super().get_fields(request, obj)
+
 admin.site.register(Order, OrderAdmin)
 
 

@@ -30,7 +30,7 @@ class IsManagerOrReadOnlySingleView(BasePermission):
             return True
         
         # Only authenticated managers can access PUT, PATCH, and DELETE
-        if request.method in ["PUT", "PATCH", "DELETE"] :
+        if request.method in ["PUT", "PATCH", "DELETE", 'POST'] :
             return request.user.is_authenticated and "Manager" in request.user.groups.values_list("name", flat=True)
         
         if request.method == "POST":
@@ -39,7 +39,7 @@ class IsManagerOrReadOnlySingleView(BasePermission):
         return False # Deny all other HTTP methods (POST in this case)
 
 
-
+# Serializer for the User group management view
 class IsUserManager(BasePermission):
     def has_permission(self, request, view):
         if request.method in ["POST", "GET", "DELETE"]:

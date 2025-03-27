@@ -3,8 +3,8 @@ from rest_framework import serializers
 from django.contrib.auth.models import Group
 
 
-
-class MenuItemSerializer(serializers.ModelSerializer):
+# Serializer for retrieving menu items
+class MenuItemReadSerializer(serializers.ModelSerializer):
     category = serializers.SlugRelatedField(
         read_only = True,
         slug_field = 'title'
@@ -13,8 +13,28 @@ class MenuItemSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__'
         model = MenuItem
-        read_only_fields = ('featured', 'id')
         
+
+
+# Accepts BOTH category name (string) OR ID (int) in POST/PUT
+class MenuItemWriteSerializer(serializers.ModelSerializer):
+    category = serializers.CharField(required=True)
+    
+    class Meta:
+        fields = '__all__'
+        model = MenuItem
+        
+    def validate_category(self, value):
+        try:
+            # Try to pass as ID first
+            if str(value).isdigit():
+                return Category.objects.get(pk=value)
+            # Fall back to name lookup
+            return Category.objects.get(title__iexact=value)
+        except Category.DoesNotExist:
+            raise serializers.ValidationError("Category does not exist.")
+
+
 
 
 # Group serializer to be used as a nested serializer in UserSerializer
@@ -26,11 +46,17 @@ class GroupSerializer(serializers.ModelSerializer):
         
 class UserSerializer (serializers.ModelSerializer):
     groups = GroupSerializer(many=True, read_only=True) #to be used in representing the 'groups' field
-    
+     
     class Meta:
         model = User
         fields = ['id', "username", "first_name", "last_name", "email", "groups", "date_joined" ]
-        
+    
+    # method to ensure username field is case insensitive
+    def validate_username(self, value):
+       if value:
+           return value.lower()
+       return value
+           
         
 class CartSerializer(serializers.ModelSerializer):
     menuitem = serializers.SlugRelatedField(
