@@ -13,7 +13,7 @@ class Category(models.Model):
 class MenuItem(models.Model):
     title = models.CharField(max_length=255, db_index=True)
     price = models.DecimalField(max_digits=6, decimal_places=2, db_index=True)
-    featured = models.BooleanField(db_index=True)
+    featured = models.BooleanField(db_index=True, default=False)
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     
     def __str__(self):
@@ -37,6 +37,10 @@ class Order(models.Model):
     status = models.BooleanField(db_index=True, default=0)
     total = models.DecimalField(max_digits=6, decimal_places=2)
     date = models.DateField(db_index=True)
+    
+    def __str__(self):
+        return f"User: {self.user} - Order Total: {self.total} - Status: {self.status} - Delivery Crew: {self.delivery_crew}"
+
     
     
 # All items from the Cart model will be moved here with a link to the newly created orderID, then those items will be deleted.

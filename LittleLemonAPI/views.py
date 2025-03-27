@@ -32,14 +32,15 @@ class MenuItemView(APIView):
         # Retrieving all menu items for everyone (includig anonumous users)
         menu_items = MenuItem.objects.all()
         # creating a serializer instance and passing the menu items to it
-        serializer = MenuItemSerializer(menu_items, many=True)
+        serializer = MenuItemReadSerializer(menu_items, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
     
     
     # For POST requests
     def post(self,request):
         # validating incoming request
-        serializer = MenuItemSerializer(data=request.data) # menu-item serializer instance
+        serializer = MenuItemWriteSerializer(data=request.data) # menu-item serializer instance
         if not serializer.is_valid():
             return Response(
                 {
@@ -96,9 +97,12 @@ class SingleMenuItem(APIView):
     
     # Method to fetch a single MenuItem object by its primary key
     def get(self, request, pk):
+        if not MenuItem.objects.filter(id=pk).exists():
+            return Response({"detail": "Menu item does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
         # retrieve the menu item by its primary key or return an error
         menu_items = get_object_or_404(MenuItem, pk=pk)
-        serializer = MenuItemSerializer(menu_items)
+        serializer = MenuItemReadSerializer(menu_items)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     
@@ -107,7 +111,7 @@ class SingleMenuItem(APIView):
         menu_item = get_object_or_404(MenuItem, pk=pk)
         
         # Binding the existing menu item with the new data from the request
-        serializer = MenuItemSerializer(menu_item, data=request.data)
+        serializer = MenuItemWriteSerializer(menu_item, data=request.data)
         
         # Validating the data using the serializer and saving the data to the db, if true
         if serializer.is_valid():
@@ -125,7 +129,7 @@ class SingleMenuItem(APIView):
         menu_item = get_object_or_404(MenuItem, pk=pk)
         
         # Deserialize request data and update the provided field alone. Setting partial=True ensures only modified fields are updated 
-        serializer = MenuItemSerializer(menu_item, data=request.data, partial=True)
+        serializer = MenuItemWriteSerializer(menu_item, data=request.data, partial=True)
         
         # Validating the data using the serializer and saving the data to the db, if true
         if serializer.is_valid():
@@ -189,7 +193,7 @@ class ManagersGroupView(APIView):
             if user_id:
                 user = User.objects.get(id=user_id)
             else:
-                user = User.objects.get(username=username)
+                user = User.objects.get(username__iexact=username)
         except User.DoesNotExist:
             return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -264,7 +268,7 @@ class DeliveryCrewView(APIView):
             if user_id:
                 user = User.objects.get(id=user_id)
             else:
-                user = User.objects.get(username=username)
+                user = User.objects.get(username__iexact=username)
         except User.DoesNotExist:
             return Response({"error": "User not found!"}, status=status.HTTP_404_NOT_FOUND)
         
@@ -274,13 +278,13 @@ class DeliveryCrewView(APIView):
         
         # Checking if user exists already in the Delivery crew group and returning an error if true
         if delivery_group.user_set.filter( Q(id=user.id) | Q(username=user.username) ).exists():
-            return Response ({"error": "user already belongs to this group"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response ({"error": "User already belongs to this group"}, status=status.HTTP_400_BAD_REQUEST)
         
         # Adding the user to the group
         user.groups.add(delivery_group)
         
         return Response(
-            {"message": "user added to the Delivery crew"}, status=status.HTTP_201_CREATED
+            {"message": "User added to the delivery crew"}, status=status.HTTP_201_CREATED
         )
         
         
@@ -330,7 +334,7 @@ class CartView(APIView):
     
     def post(self, request, *arg, **kwargs):
         # Obtaining the menu item or returning a 404 otherwise
-        menuitem = get_object_or_404(MenuItem, id=request.data.get('item_id'))
+        menuitem = get_object_or_404(MenuItem, id=request.data.get('id'))
 
         # Chaecking if currrently authenticated user already has item in cart
         if Cart.objects.filter(user=request.user, menuitem=menuitem).exists():
@@ -481,7 +485,7 @@ class OrderDetailView(APIView):
         # Checking for access right
         if not self.validate_order_access(order, request.user):
             return Response(
-                {"detail": "You do not have permission to view this order."}, 
+                {"detail": "You do not have permission to perform this operation."}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -491,14 +495,90 @@ class OrderDetailView(APIView):
         
         
     
-    
+    # PUT method (Only managers have access)
     def put(self, request, pk):
-        return Response({"message": "going through"})
+        if not request.user.groups.filter(name='Manager').exists():
+            return Response(
+                {"detail": "You do not have permission to perform this operation."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        # If user is a manager, retrieve pk and pass the request data to the serializer
+        order = self.retrieve_order(pk)
+        serializer = OrderSerializer(order, data=request.data)
+        
+        # Checking for validation errors and raising an exception if found
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     
+    # PATCH requests
     def patch(self, request, pk):
-        return Response({"message": "going through"})
+        order = self.retrieve_order(pk)
+        user = request.user
+        
+        # Checking if user belongs to the delivery crew
+        if user.groups.filter(name="Delivery crew").exists():
+            if order.delivery_crew != user:
+                return Response(
+                    {"detail": "You're not assigned to this order."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Checking if delivery crew is trying to modify non-status fields 
+            if any(field != 'status' for field in request.data.keys()):
+                return Response(
+                    {"detail": "Delivery crew can only update order status."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Chacking if a customer attempts to update the status field
+        elif not user.groups.filter(name='Manager').exists():
+            return Response(
+                {"detail": "You don't have update permissions."},
+                status=status.HTTP_403_FORBIDDEN
+            )
     
-    
+        # Perform update
+        serializer = OrderSerializer(
+            order,
+            data = request.data,
+            partial = True
+        )
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                serializer.data, 
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+            
+            
+    # Delete method
     def delete(self, request, pk):
-        return Response({"message": "going through"})
+        if not request.user.groups.filter(name='Manager').exists():
+            return Response(
+                {"detail": "Only managers can delete orders."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        order = self.retrieve_order(pk)
+        order.delete()
+        return Response(
+            {"detail": "Order deleted successfully"},
+            status=status.HTTP_200_OK
+        )
