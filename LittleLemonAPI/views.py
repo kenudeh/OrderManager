@@ -582,3 +582,22 @@ class OrderDetailView(APIView):
             {"detail": "Order deleted successfully"},
             status=status.HTTP_200_OK
         )
+        
+        
+        
+
+class CategoryListView(APIView):
+    # List all categories
+    def get(self, request):
+        category = Category.objects.all()
+        serializer = CategorySerializer(category, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class CategoryMenuItemsView(APIView):
+    # List menu items for a specific category
+    def get(self, request, category_id):
+        category = get_object_or_404(Category, id=category_id)
+        menu_items = MenuItem.objects.filter(category=category)
+        serializer = MenuItemReadSerializer(menu_items, many=True)
+        return Response(serializer.data)

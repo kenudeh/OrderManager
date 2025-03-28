@@ -123,3 +123,9 @@ class SingleOrderViewSerializer(serializers.ModelSerializer):
             'delivery_crew', 'delivery_crew_name',
             'status', 'total', 'date', 'items'
         ]
+        
+        
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = '__all__'
