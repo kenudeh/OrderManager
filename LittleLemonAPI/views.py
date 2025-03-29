@@ -1,7 +1,10 @@
 from django.shortcuts import render
 from .serliazers import *
+from .Pagination import *
 from rest_framework.views import APIView
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -24,13 +27,40 @@ MENU ITEMS ENDPOINTS
 
 # Create your views here.
 class MenuItemView(APIView):
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     permission_classes = [IsManagerOrReadOnly] 
+    # Filtering and/or ordering (In this case, we're using custom filtering, so only ordering is specified in the filter_backends list)
+    filter_backends = [OrderingFilter]
+    # Ordering fields 
+    ordering_fields = ['price']
+    # Pagination
+    pagination_class = PageNumberPagination
+    
     
     # For handling GET requests
     def get(self, request):
         # Retrieving all menu items for everyone (includig anonumous users)
         menu_items = MenuItem.objects.all()
+        
+        # Custom filtering
+        category_name = request.query_params.get('category')
+        if category_name: # by category name
+            menu_items = menu_items.filter(category__title__iexact = category_name)
+        price = request.query_params.get('price')
+        if price: # by price
+            menu_items = menu_items.filter(price=price)
+        
+        # Sorting 
+        for backend in list(self.filter_backends):
+            menu_items = backend().filter_queryset(request, menu_items, self)
+        
+        # Pagination
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(menu_items, request)
+        if page is not None:
+            serializer = MenuItemReadSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        
         # creating a serializer instance and passing the menu items to it
         serializer = MenuItemReadSerializer(menu_items, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -93,7 +123,7 @@ class MenuItemView(APIView):
     
 class SingleMenuItem(APIView):
     permission_classes = [IsManagerOrReadOnlySingleView]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     
     # Method to fetch a single MenuItem object by its primary key
     def get(self, request, pk):
@@ -168,7 +198,7 @@ USER GROUP MANAGEMENT ENDPOINTS
 # Endpoint for viewing and assigning users to the managers group 
 class ManagersGroupView(APIView):
     permission_classes = [IsUserManager]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [UserRateThrottle]
     
     # Returns all users in the "Manager" group
     def get(self, request):
@@ -217,7 +247,7 @@ class ManagersGroupView(APIView):
 # Endpoint for removing a manager
 class RemoveFromManagersView(APIView):
         permission_classes = [IsUserManager]
-        throttle_classes = [AnonRateThrottle]
+        throttle_classes = [UserRateThrottle]
         
         def delete(self, request, pk):
             # fetching the user instance by ID
@@ -244,7 +274,7 @@ class RemoveFromManagersView(APIView):
 
 class DeliveryCrewView(APIView):
     permission_classes = [IsUserManager]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [UserRateThrottle]
 
     
     def get(self, request):
@@ -290,7 +320,7 @@ class DeliveryCrewView(APIView):
         
 class RemoveFromDeliveryCrew(APIView):
     permission_classes = [IsUserManager]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [UserRateThrottle]
     
     def delete(self, request, pk):
         # fetching the user instance by the primary key provided in the URL
@@ -321,7 +351,7 @@ CART MANAGEMENT ENDPOINTS
 """
 class CartView(APIView):
     permission_classes = [IsUserCustomer]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
     def get(self, request, *args, **kwargs):
         # Filtering the cart model by the current user
@@ -379,31 +409,55 @@ ORDER MANAGEMENT ENDPOINTS
 """
 # Converts cart ites to an order
 class OrdersView(APIView):
+    # Permission class defined in Permissions.py
     permission_classes = [OrderPermissions]
-    throttle_classes = [AnonRateThrottle]
+    # Anonymous rate throttling ( values already specified in settings.py)
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    # Pagination class (defined in Pagination.py)
+    pagination_class = [OrderPagination]
+    # Filter configuration (Using DjangoFilterBackend as against manually aplying filtering in the get() method. This requirs defining a filterset_fields)
+    filter_backends = [OrderingFilter, DjangoFilterBackend]
+    filterset_fields = {  # Filtering by date and status only
+        'date' : ['gte', 'lte', 'exact'],
+        'status' : ['exact']
+    }
+    ordering_fields = ['date']
+    ordering = ['-date']
     
-    # Return orders based on the user role
-    def get(self, request):
-        user = request.user
-        
+    
+    # Method to handle GET requests
+    def get_queryset(self):
+        # defining a queryset based on user role
+        user = self.request.user
         # Prefetching related order items for performance
         order_items_prefetch = Prefetch('orderitem_set', queryset=OrderItem.objects.select_related('menuitem'))
         
         # Case 1: Mangers can view all items
         if user.groups.filter(name='Manager').exists():
-            orders = Order.objects.all().prefetch_related(order_items_prefetch)
+            return Order.objects.all().prefetch_related(order_items_prefetch)
         # Case 2: Delivery crew can only see orders assigned to them
         elif user.groups.filter(name='Delivery crew').exists():
-            orders = Order.objects.filter(
+            return Order.objects.filter(
                 delivery_crew=user
             ).prefetch_related(order_items_prefetch)
         # Case 3: Customers can only view their own orders
         else:
-            orders = Order.objects.filter(user = user).prefetch_related(order_items_prefetch)
+            return Order.objects.filter(user = user).prefetch_related(order_items_prefetch)
       
+        
+        
+    # Return orders based on the user role
+    def get(self, request):
+        queryset = self.get_queryset()
+        
+        # Apply filters
+        for backend in self.filter_backends:
+            queryset = backend().filter_queryset(request, queryset, self)
+        
         # Passing the context to the serializer for role checking 
-        serializer = OrderSerializer(orders, many=True, context={'request': request})
+        serializer = OrderSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
+    
     
     
     # Order handling method. Converts cart items to an order and clears the cart
@@ -457,7 +511,7 @@ class OrdersView(APIView):
 
 class OrderDetailView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [AnonRateThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     
     # Helper method to get order or return 404
     def retrieve_order(self, pk):
@@ -587,6 +641,9 @@ class OrderDetailView(APIView):
         
 
 class CategoryListView(APIView):
+    pagination_class = CustomPagination
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    
     # List all categories
     def get(self, request):
         category = Category.objects.all()
@@ -595,9 +652,25 @@ class CategoryListView(APIView):
     
 
 class CategoryMenuItemsView(APIView):
+    pagination_class = CustomPagination
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    
     # List menu items for a specific category
     def get(self, request, category_id):
+        # Get the category or return an error 
         category = get_object_or_404(Category, id=category_id)
-        menu_items = MenuItem.objects.filter(category=category)
-        serializer = MenuItemReadSerializer(menu_items, many=True)
-        return Response(serializer.data)
+        
+        # Get all menu items for this category
+        queryset = MenuItem.objects.filter(category=category)
+        
+        # Paginating the results
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = MenuItemReadSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        
+        # Fallback if pagination is not applied
+        serializer = MenuItemReadSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

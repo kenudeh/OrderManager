@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'djoser',
+    'django_filters',
 ]
 
 REST_FRAMEWORK = {
@@ -57,6 +58,20 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'DEFAULT_FILTER_BACKENDS' : [
+        'rest_framework.filters.OrderingFilter',
+        'django_filters.rest_framework.DjangoFilterBackend'
+    ],
+    'DEFAULT_PAGINATION_CLASS' : 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE' : 10,
+     'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '50/day',  
+        'user': '200/day'
+    }
 }
 
 MIDDLEWARE = [
