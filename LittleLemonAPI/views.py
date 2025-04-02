@@ -104,7 +104,7 @@ class MenuItemView(APIView):
                     "errors": str(e)
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            ) 
          
             
     def put(self, request):
@@ -353,6 +353,7 @@ class CartView(APIView):
     permission_classes = [IsUserCustomer]
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
+    # Method to view cart items
     def get(self, request, *args, **kwargs):
         # Filtering the cart model by the current user
         cart_items = Cart.objects.filter(user=request.user)
@@ -361,12 +362,12 @@ class CartView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
         
     
-    
+    # Method to add items to cart
     def post(self, request, *arg, **kwargs):
         # Obtaining the menu item or returning a 404 otherwise
         menuitem = get_object_or_404(MenuItem, id=request.data.get('id'))
 
-        # Chaecking if currrently authenticated user already has item in cart
+        # Chaecking if the authenticated user already has current item in cart
         if Cart.objects.filter(user=request.user, menuitem=menuitem).exists():
             return Response(
                 {"error": "This item is already in your cart"}, 
@@ -390,7 +391,7 @@ class CartView(APIView):
         serializer = CartSerializer(cart_item)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    
+    # Method to delete cart item
     def delete(self, request, *args, **kwargs):
         
         if not Cart.objects.filter(user=request.user).exists():
@@ -407,7 +408,7 @@ class CartView(APIView):
 """
 ORDER MANAGEMENT ENDPOINTS
 """
-# Converts cart ites to an order
+
 class OrdersView(APIView):
     # Permission class defined in Permissions.py
     permission_classes = [OrderPermissions]
@@ -425,7 +426,7 @@ class OrdersView(APIView):
     ordering = ['-date']
     
     
-    # Method to handle GET requests
+    # Method to obtain existing orders for a user
     def get_queryset(self):
         # defining a queryset based on user role
         user = self.request.user
@@ -639,7 +640,9 @@ class OrderDetailView(APIView):
         
         
         
-
+"""
+CATEGORY ENDPOINTS
+"""
 class CategoryListView(APIView):
     pagination_class = CustomPagination
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
@@ -650,6 +653,55 @@ class CategoryListView(APIView):
         serializer = CategorySerializer(category, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
+    # Add a category
+    def post(self, request):
+        # validating incoming request
+        serializer = CategorySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Invalid input",
+                    "errors": serializer.errors
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Checking if cateory name already exists
+        if Category.objects.filter(title__iexact=request.data.get('title')).exists():
+            return Response(
+                {"error": "Category already exists"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+        # Save the data
+        try:
+            serializer.save()
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Category added successfully",
+                    "data": serializer.data,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            # Using Django's logging framework to log the error for debugging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to save data: {str(e)}")
+            
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Failed to save data",
+                    "errors": str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            ) 
+            
+        
+
+
 
 class CategoryMenuItemsView(APIView):
     pagination_class = CustomPagination
