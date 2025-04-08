@@ -12,15 +12,15 @@ urlpatterns = [
     path('cart/menu-items', views.CartView.as_view()),
     path('orders', views.OrdersView.as_view()),
     path('orders/<int:pk>', views.OrderDetailView.as_view()),
-    path('category', views.CategoryListView.as_view()),
-    path('category/<int:category_id>/items', views.CategoryMenuItemsView.as_view()),
+    path('categories', views.CategoryListView.as_view()),
+    path('categories/<int:category_id>/items', views.CategoryMenuItemsView.as_view()),
     # Djoser urls
-    path("", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
-    path("", include("djoser.urls.authtoken")),  # Includes  token endpoints
+    path("auth/", include("djoser.urls")),  # Includes registration, login, logout, password reset, etc.
+    path("auth/", include("djoser.urls.authtoken")),  # Includes  token endpoints
 ]
 
 
-# api/users/ (user registration)
-# api/users/me (display currently authenticated user)
-# api/token/login (Generates access token. Username and password must be included in the request)
+# api/auth/users/ (user registration)
+# api/auth/users/me (display currently authenticated user)
+# api/auth/token/login (Generates access token. Username and password must be included in the request)
 # /token/logout/
