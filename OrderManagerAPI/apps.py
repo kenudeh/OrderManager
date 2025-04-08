@@ -1,10 +1,11 @@
 from django.apps import AppConfig
 
 
-class LittleLemonApiConfig(AppConfig):
+class OrderManagerAPIConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'LittleLemonAPI'
+    name = 'OrderManagerAPI'
 
 
     def ready(self):
-        import LittleLemonAPI.signals
+        import OrderManagerAPI.signals
+        

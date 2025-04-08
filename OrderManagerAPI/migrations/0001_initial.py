@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ('title', models.CharField(db_index=True, max_length=255)),
                 ('price', models.DecimalField(db_index=True, decimal_places=2, max_digits=6)),
                 ('featured', models.BooleanField(db_index=True)),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='LittleLemonAPI.category')),
+                ('category', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='OrderManagerAPI.category')),
             ],
         ),
         migrations.CreateModel(
@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
                 ('unit_price', models.DecimalField(decimal_places=2, max_digits=6)),
                 ('price', models.DecimalField(decimal_places=2, max_digits=6)),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
-                ('menuitem', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='LittleLemonAPI.menuitem')),
+                ('menuitem', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='OrderManagerAPI.menuitem')),
             ],
             options={
                 'unique_together': {('menuitem', 'user')},
@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
                 ('quantity', models.SmallIntegerField()),
                 ('unit_price', models.DecimalField(decimal_places=2, max_digits=6)),
                 ('price', models.DecimalField(decimal_places=2, max_digits=6)),
-                ('menuitem', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='LittleLemonAPI.menuitem')),
+                ('menuitem', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='OrderManagerAPI.menuitem')),
                 ('order', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],
             options={
